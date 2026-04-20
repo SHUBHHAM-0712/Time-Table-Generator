@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Timetable Generator</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <h1>Timetable Generator</h1>
+  <p class="hint">PostgreSQL + CSP scheduler. Configure <code>DATABASE_URL</code> in <code>.env</code>.</p>
+
+  <section>
+    <div id="db-status" class="status">Checking database…</div>
+    <div class="grid-stats" id="meta"></div>
+  </section>
+
+  <section>
+    <h2>Replace catalog from CSV (optional)</h2>
+    <p class="hint">
+      After <code>init-db</code>, offerings and rooms live in PostgreSQL. Use this only if you want to overwrite the DB from your own academic CSV; scheduling below reads from the DB.
+    </p>
+    <form id="form-load">
+      <label>Academic CSV</label>
+      <input type="file" name="academic" accept=".csv" />
+      <label>Time slots CSV (optional)</label>
+      <input type="file" name="slots" accept=".csv" />
+      <div><button type="submit" class="primary">Upload &amp; ingest</button></div>
+    </form>
+    <pre id="load-out" class="raw" hidden></pre>
+  </section>
+
+  <section>
+    <h2>Generate schedule</h2>
+    <p class="hint">
+      Chooses which semester cohort to include: <strong>Autumn</strong> = semesters 1, 3, 5 (like <code>autumn.csv</code>); <strong>Winter</strong> = 2, 4, 6 (like <code>winter.csv</code>); <strong>All</strong> = everything in <code>batch_course_map</code>.
+    </p>
+    <form id="form-schedule">
+      <label>Term</label>
+      <select name="term">
+        <option value="all" selected>All semesters</option>
+        <option value="autumn">Autumn (1, 3, 5)</option>
+        <option value="winter">Winter (2, 4, 6)</option>
+      </select>
+      <label>Label</label>
+      <input type="text" name="label" value="web" />
+      <label>Source note</label>
+      <input type="text" name="source" value="db" />
+      <label>Timeout (seconds)</label>
+      <input type="number" name="timeout" value="180" min="30" max="600" />
+      <div><button type="submit" class="primary">Run scheduler</button></div>
+    </form>
+    <pre id="schedule-out" class="raw" hidden></pre>
+  </section>
+
+  <section>
+    <h2>Runs</h2>
+    <button type="button" id="btn-refresh-runs">Refresh</button>
+    <table class="data" id="runs-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Label</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section id="preview-section" hidden>
+    <h2>Preview</h2>
+    <div class="tabs" id="preview-tabs"></div>
+    <div id="preview-table" class="preview-wrap"></div>
+    <pre id="preview-conflicts" class="raw" hidden></pre>
+  </section>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+
+    async function refreshHealth() {
+      const el = $("#db-status");
+      try {
+        const r = await fetch("/api/health");
+        const j = await r.json();
+        if (j.ok) {
+          el.textContent = "Database connected.";
+          el.className = "status ok";
+        } else {
+          el.textContent = "Database error: " + (j.error || r.status);
+          el.className = "status err";
+        }
+      } catch (e) {
+        el.textContent = "Cannot reach API: " + e;
+        el.className = "status err";
+      }
+    }
+
+    async function refreshMeta() {
+      try {
+        const j = await fetch("/api/meta").then((r) => r.json());
+        if (j.detail) return;
+        $("#meta").innerHTML = [
+          ["Faculty", j.faculty],
+          ["Courses", j.course],
+          ["Batches", j.student_batch],
+          ["Rooms", j.room],
+          ["Time slots", j.time_slot],
+          ["Enrollments", j.batch_course_map],
+        ]
+          .map(([k, v]) => `<span><strong>${k}</strong>: ${v}</span>`)
+          .join("");
+      } catch (_) {}
+    }
+
+    $("#form-load").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      const out = $("#load-out");
+      out.hidden = false;
+      out.textContent = "Uploading…";
+      try {
+        const r = await fetch("/api/load", { method: "POST", body: fd });
+        const j = await r.json();
+        out.textContent = JSON.stringify(j, null, 2);
+        refreshMeta();
+      } catch (e) {
+        out.textContent = String(e);
+      }
+    };
+
+    $("#form-schedule").onsubmit = async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      const out = $("#schedule-out");
+      out.hidden = false;
+      out.textContent = "Running…";
+      try {
+        const r = await fetch("/api/schedule", { method: "POST", body: fd });
+        const j = await r.json();
+        out.textContent = JSON.stringify(j, null, 2);
+        refreshRuns();
+        refreshMeta();
+      } catch (e) {
+        out.textContent = String(e);
+      }
+    };
+
+    function fmtTime(t) {
+      if (!t) return "";
+      return String(t).slice(0, 5);
+    }
+
+    function buildGrid(events, cellFn) {
+      const days = ["Mon", "Tue", "Wed", "Thur", "Fri"];
+      const times = new Set();
+      events.forEach((e) => {
+        times.add(fmtTime(e.start_time) + "-" + fmtTime(e.end_time));
+      });
+      const timeList = Array.from(times).sort();
+      const rows = timeList.map((tm) => {
+        const tr = document.createElement("tr");
+        const td0 = document.createElement("td");
+        td0.textContent = tm;
+        tr.appendChild(td0);
+        days.forEach((d) => {
+          const td = document.createElement("td");
+          const match = events.find(
+            (e) =>
+              e.day_of_week === d &&
+              fmtTime(e.start_time) + "-" + fmtTime(e.end_time) === tm
+          );
+          td.textContent = match ? cellFn(match) : "";
+          tr.appendChild(td);
+        });
+        return tr;
+      });
+      const table = document.createElement("table");
+      table.className = "data";
+      const thead = document.createElement("thead");
+      const hr = document.createElement("tr");
+      hr.appendChild(document.createElement("th")).textContent = "Time";
+      days.forEach((d) => {
+        hr.appendChild(document.createElement("th")).textContent = d;
+      });
+      thead.appendChild(hr);
+      const tbody = document.createElement("tbody");
+      rows.forEach((r) => tbody.appendChild(r));
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      return table;
+    }
+
+    async function showPreview(runId) {
+      const sec = $("#preview-section");
+      const tabs = $("#preview-tabs");
+      const box = $("#preview-table");
+      const cf = $("#preview-conflicts");
+      sec.hidden = false;
+      tabs.innerHTML = "";
+      box.innerHTML = "Loading…";
+      cf.hidden = true;
+
+      const events = await fetch(`/api/run/${runId}/events`).then((r) => r.json());
+      if (!events.length) {
+        const conflicts = await fetch(`/api/run/${runId}/conflicts`).then((r) => r.json());
+        box.innerHTML = "";
+        if (conflicts.length) {
+          cf.hidden = false;
+          cf.textContent = JSON.stringify(conflicts, null, 2);
+        } else {
+          box.textContent = "No timetable rows (failed run or empty).";
+        }
+        return;
+      }
+
+      const batches = [...new Set(events.map((e) => e.batch_code))].sort();
+      const faculties = [...new Set(events.map((e) => e.faculty))].sort();
+      const rooms = [...new Set(events.map((e) => e.room_code))].sort();
+
+      const modes = [
+        { id: "b", label: "By batch", filter: batches, key: (e, id) => e.batch_code === id, cell: (e) => `${e.course_code} · ${e.faculty} · ${e.room_code}` },
+        { id: "f", label: "By faculty", filter: faculties, key: (e, id) => e.faculty === id, cell: (e) => `${e.course_code} · ${e.batch_code} · ${e.room_code}` },
+        { id: "r", label: "By room", filter: rooms, key: (e, id) => e.room_code === id, cell: (e) => `${e.course_code} · ${e.batch_code} · ${e.faculty}` },
+      ];
+
+      let modeIdx = 0;
+      let subId = modes[0].filter[0];
+
+      function render() {
+        const m = modes[modeIdx];
+        const sub = events.filter((e) => m.key(e, subId));
+        box.innerHTML = "";
+        box.appendChild(buildGrid(sub, m.cell));
+      }
+
+      modes.forEach((m, mi) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = m.label;
+        b.onclick = () => {
+          modeIdx = mi;
+          subId = m.filter[0];
+          [...tabs.querySelectorAll("button")].forEach((x, i) => x.classList.toggle("active", i === modeIdx));
+          renderSubTabs();
+          render();
+        };
+        tabs.appendChild(b);
+      });
+      tabs.querySelector("button").classList.add("active");
+
+      const subBar = document.createElement("div");
+      subBar.className = "tabs";
+      subBar.id = "preview-subtabs";
+      tabs.after(subBar);
+
+      function renderSubTabs() {
+        subBar.innerHTML = "";
+        const m = modes[modeIdx];
+        m.filter.forEach((id) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = id;
+          b.className = id === subId ? "active" : "";
+          b.onclick = () => {
+            subId = id;
+            [...subBar.querySelectorAll("button")].forEach((x) => {
+              x.classList.toggle("active", x.textContent === subId);
+            });
+            render();
+          };
+          subBar.appendChild(b);
+        });
+      }
+
+      renderSubTabs();
+      render();
+    }
+
+    async function refreshRuns() {
+      const tbody = $("#runs-table tbody");
+      tbody.innerHTML = "";
+      let runs = [];
+      try {
+        runs = await fetch("/api/runs").then((r) => r.json());
+      } catch (e) {
+        return;
+      }
+      runs.forEach((run) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${run.run_id}</td><td>${escapeHtml(run.label)}</td><td>${escapeHtml(run.status)}</td><td>${String(run.created_at || "").slice(0, 19)}</td><td></td>`;
+        const td = tr.lastElementChild;
+        const bp = document.createElement("button");
+        bp.textContent = "Preview";
+        bp.onclick = () => showPreview(run.run_id);
+        const bz = document.createElement("button");
+        bz.textContent = "ZIP";
+        bz.onclick = () => {
+          window.location.href = `/api/export/${run.run_id}/zip`;
+        };
+        td.appendChild(bp);
+        td.appendChild(bz);
+        tbody.appendChild(tr);
+      });
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    $("#btn-refresh-runs").onclick = refreshRuns;
+
+    refreshHealth();
+    refreshMeta();
+    refreshRuns();
+    setInterval(refreshHealth, 30000);
+  </script>
+</body>
+</html>
