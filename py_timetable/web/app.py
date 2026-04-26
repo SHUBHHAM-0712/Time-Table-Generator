@@ -6,6 +6,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+import psycopg2
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -55,7 +56,7 @@ def api_health() -> dict[str, Any]:
             return {"ok": True, "database": "connected"}
         finally:
             conn.close()
-    except Exception as e:
+    except (RuntimeError, ValueError, OSError, psycopg2.Error) as e:
         return JSONResponse(
             status_code=503,
             content={"ok": False, "error": str(e)},
@@ -188,8 +189,9 @@ def api_schedule(
     timeout: float = Form(180),
     term: str = Form("all"),
 ) -> dict[str, Any]:
-    conn = _conn()
+    conn = None
     try:
+        conn = _conn()
         try:
             run_id, ok, msg = run_scheduler(
                 conn,
@@ -202,8 +204,34 @@ def api_schedule(
             raise HTTPException(status_code=400, detail=str(e)) from e
         conn.commit()
         return {"ok": ok, "run_id": run_id, "message": msg}
+    except (RuntimeError, psycopg2.Error) as e:
+        # Keep API responses JSON so the frontend can show useful error details.
+        raise HTTPException(status_code=500, detail=f"Scheduler failed: {e}") from e
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
+
+
+@app.get("/api/schedule")
+def api_schedule_help() -> dict[str, Any]:
+    return {
+        "ok": False,
+        "hint": "Use POST /api/schedule with form fields: label, source, timeout, term",
+        "example": {
+            "label": "web",
+            "source": "db",
+            "timeout": 180,
+            "term": "all",
+        },
+    }
+
+
+@app.get("/api/shedule")
+def api_schedule_typo_help() -> dict[str, Any]:
+    return {
+        "ok": False,
+        "hint": "Endpoint name is /api/schedule (not /api/shedule). Use POST /api/schedule.",
+    }
 
 
 @app.get("/api/export/{run_id}/zip")

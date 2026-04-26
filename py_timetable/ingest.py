@@ -101,7 +101,32 @@ def ingest_academic_csv(conn: PgConnection, path: Path, default_batch_size: int)
 
     with path.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        academic_rows = list(reader)
+        fieldnames = [str(x).strip().lower() for x in (reader.fieldnames or []) if x is not None]
+        expected = {"code", "name", "l-t-p-c", "type", "faculty", "program", "semester"}
+
+    if expected.issubset(set(fieldnames)):
+        with path.open(newline="", encoding="utf-8") as f:
+            academic_rows = list(csv.DictReader(f))
+    else:
+        # Accept legacy/headerless CSV in fixed order:
+        # code,name,L-T-P-C,type,faculty,program,semester
+        academic_rows = []
+        with path.open(newline="", encoding="utf-8") as f:
+            rows = csv.reader(f)
+            for cols in rows:
+                if len(cols) < 7:
+                    continue
+                academic_rows.append(
+                    {
+                        "code": cols[0],
+                        "name": cols[1],
+                        "L-T-P-C": cols[2],
+                        "type": cols[3],
+                        "faculty": cols[4],
+                        "program": cols[5],
+                        "semester": cols[-1],
+                    }
+                )
 
     with conn.cursor() as cur:
         cur.execute("DELETE FROM master_timetable")

@@ -1,0 +1,92 @@
+HM106,Approaches to Indian Society,3-0-0-3,Core,BK,ICTA,2
+HM106,Approaches to Indian Society,3-0-0-3,Core,BK,ICTB,2
+HM106,Approaches to Indian Society,3-0-0-3,Core,BK,CS,2
+HM106,Approaches to Indian Society,3-0-0-3,Core,BK,MNC,2
+HM106,Approaches to Indian Society,3-0-0-3,Core,BK,EVD,2
+IC121,Digital Logic and Computer Organization,3-0-2-4,Core,SR,ICTA,2
+IT205,Data Structures,3-0-0-3,Core,SDG,ICTA,2
+IT206,Data Structure Lab using OOP,1-0-2-2,Core,PhD Scholar,ICTA,2
+SC205,Discrete Mathematics,3-1-0-4,Core,AT2,ICTA,2
+SC217,Electromagnetic Theory,3-1-0-4,Core,GD,ICTA,2
+PC125,Exploration Project I ,0-1-0-1,Core,Faculty,ICTA,2
+CO121,CoCurricular II,0-0-2-1,Core,SBG/Music/Sports,ICTA,2
+IC121,Digital Logic and Computer Organization,3-0-2-4,Core,PK,ICTB,2
+IT205,Data Structures,3-0-0-3,Core,AR2,ICTB,2
+IT206,Data Structure Lab using OOP,1-0-2-2,Core,PhD Scholar,ICTB,2
+SC205,Discrete Mathematics,3-1-0-4,Core,MKR,ICTB,2
+SC217,Electromagnetic Theory,3-1-0-4,Core,GD,ICTB,2
+PC125,Exploration Project I ,0-1-0-1,Core,Faculty,ICTB,2
+CO121,CoCurricular II,0-0-2-1,Core,SBG/Music/Sports,ICTB,2
+IC121,Digital Logic and Computer Organization,3-0-2-4,Core,PK,CS,2
+IT205,Data Structures,3-0-0-3,Core,AR2,CS,2
+IT206,Data Structure Lab using OOP,1-0-2-2,Core,PhD Scholar,CS,2
+SC205,Discrete Mathematics,3-1-0-4,Core,MKR,CS,2
+SC217,Electromagnetic Theory,3-1-0-4,Core,GD,CS,2
+PC125,Exploration Project I ,0-1-0-1,Core,Faculty,CS,2
+CO121,CoCurricular II,0-0-2-1,Core,SBG/Music/Sports,CS,2
+MC215,Linear Algebra,3-1-0-4,Core,SB2,MNC,2
+MC122,Object Oriented Programming,2-0-2-3,Core,TBD,MNC,2
+MC125,Functions of Single Variable and ODEs,3-1-0-4,Core,MS,MNC,2
+MC124,Data Structures and Algorithms,3-0-2-4,Core,RM2,MNC,2
+ED121,Engineering Mathematics II,3-1-0-4,Core,PK2,EVD,2
+IC121,Digital Logic and Computer Organization,3-0-2-4,Core,PK,EVD,2
+IT205,Data Structures,3-0-0-3,Core,AR2,EVD,2
+IT206,Data Structure Lab using OOP,1-0-2-2,Core,PhD Scholar,EVD,2
+SC217,Electromagnetic Theory,3-1-0-4,Core,GD,EVD,2
+PC125,Exploration Project I ,0-1-0-1,Core,Faculty,EVD,2
+CO111,CoCurricular II,0-0-2-1,Core,SBG/Music/Sports,EVD,2
+HM116,Principles of Economics,3-0-0-3,Core,GS,ICTA,4
+EL203,Embedded Hardware Design,3-0-2-4,Core,BM,ICTA,4
+IT214,Database Management System,3-0-2-4,Core,PMJ,ICTA,4
+CT216,Introduction to Communication Systems,3-0-2-4,Core,YV,ICTA,4
+SC224,Probability and Statistics,3-1-0-4,Core,MS,ICTA,4
+CO212,Co-curricular IV,0-0-2-1,Core,SBG/Music/Sports,ICTA,4
+IT422,Models of Computation ,3-0-0-3,Technical Elective (Honours Cat),RM,ICTA,4
+IE402,Optimization,3-0-2-4,ICT & Technical Elective (Honours Cat),MKR,ICTA,4
+IE410,Introduction to Robotics,3-0-2-4,ICT & Technical Elective (RAS minor + Honours Cat),TKM,ICTA,4
+HM116,Principles of Economics,3-0-0-3,Core,CJ,ICTB,4
+EL203,Embedded Hardware Design,3-0-2-4,Core,YA,ICTB,4
+IT214,Database Management System,3-0-2-4,Core,PMJ,ICTB,4
+CT216,Introduction to Communication Systems,3-0-2-4,Core,YV,ICTB,4
+SC224,Probability and Statistics,3-1-0-4,Core,MK2,ICTB,4
+CO212,Co-curricular IV,0-0-2-1,Core,SBG/Music/Sports,ICTB,4
+IT422,Models of Computation ,3-0-0-3,Technical Elective (Honours Cat),RM,ICTB,4
+IE402,Optimization,3-0-2-4,ICT & Technical Elective (Honours Cat),MKR,ICTB,4
+IE410,Introduction to Robotics,3-0-2-4,ICT & Technical Elective (RAS minor + Honours Cat),TKM,ICTB,4
+HM116,Principles of Economics,3-0-0-3,Core,CJ,CS,4
+EL203,Embedded Hardware Design,3-0-2-4,Core,YA,CS,4
+IT214,Database Management System,3-0-2-4,Core,PMJ,CS,4
+CT216,Introduction to Communication Systems,3-0-2-4,Core,YV,CS,4
+SC224,Probability and Statistics,3-1-0-4,Core,MK2,CS,4
+CO212,Co-curricular IV,0-0-2-1,Core,SBG/Music/Sports,CS,4
+IT422,Models of Computation ,3-0-0-3,Technical Elective (Honours Cat),RM,CS,4
+IE402,Optimization,3-0-2-4,ICT & Technical Elective (Honours Cat),MKR,CS,4
+IE410,Introduction to Robotics,3-0-2-4,ICT & Technical Elective (RAS minor + Honours Cat),TKM,CS,4
+CS201,Introductory Computational Physics,3-0-3-4.5,Core,AR,CS,4
+MC221,Mathematical Statistics,3-1-0-4,Core,GP,MNC,4
+MC222,Real and Complex Analysis,3-1-0-4,Core,NKS,MNC,4
+MC223,Theory of Computation,3-1-0-4,Core,PB,MNC,4
+MC224,Parallel and Distributed Algorithms,3-1-0-4,Core,VS,MNC,4
+MC225,Numerical and Computational Methods,3-0-2-4,Core,SK,MNC,4
+MC226,Environmental Studies,2-0-0-2,Core,RG,MNC,4
+SC407,Environmental Science,3-0-0-3,Core,YV,ICTA,6
+IE406,Machine Learning,3-0-2-4,ICT & Technical Elective,SM,ICTA,6
+IE410,Introduction to Robotics,3-0-2-4,ICT & Technical Elective (RAS minor + Honours),TKM,ICTA,6
+IE411,Operating Systems,3-0-2-4,ICT & Technical Elective,AMM,ICTA,6
+IE403,Human Computer Interaction,3-0-2-4,"ICT & Technical Elective-MnC Elective",PKS,ICTA,6
+IE404,Digital Image Processing,3-0-2-4,ICT & Technical Elective,MK,ICTA,6
+SC407,Environmental Science,3-0-0-3,Core,YV,ICTB,6
+IE406,Machine Learning,3-0-2-4,ICT & Technical Elective,SM,ICTB,6
+IE410,Introduction to Robotics,3-0-2-4,ICT & Technical Elective (RAS minor + Honours),TKM,ICTB,6
+IE411,Operating Systems,3-0-2-4,ICT & Technical Elective,AMM,ICTB,6
+IE403,Human Computer Interaction,3-0-2-4,"ICT & Technical Elective-MnC Elective",PKS,ICTB,6
+IE404,Digital Image Processing,3-0-2-4,ICT & Technical Elective,MK,ICTB,6
+SC407,Environmental Science,3-0-0-3,Core,YV,CS,6
+IE406,Machine Learning,3-0-2-4,ICT & Technical Elective,SM,CS,6
+IE410,Introduction to Robotics,3-0-2-4,ICT & Technical Elective (RAS minor + Honours),TKM,CS,6
+IE411,Operating Systems,3-0-2-4,ICT & Technical Elective,AMM,CS,6
+IE403,Human Computer Interaction,3-0-2-4,"ICT & Technical Elective-MnC Elective",PKS,CS,6
+IE404,Digital Image Processing,3-0-2-4,ICT & Technical Elective,MK,CS,6
+CS302,Modeling and Simulation,3-0-3-4.5,Core,AR,CS,6
+CS301,High Performance Computing,3-0-3-4.5,Core,BC,CS,6
+MC321,Machine Learning,3-0-2-4,Core,PA,MNC,6
