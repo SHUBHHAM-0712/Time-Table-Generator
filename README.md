@@ -25,13 +25,20 @@
 - ReportLab (PDF)
 - Psycopg2 (DB Driver)
 
+## 🌍 Live Deployed Website
+
+The project is live on Render:
+
+- 🔗 [OptiSchedule Live App](https://optischedule-cwl5.onrender.com/)
+- ❤️ [Health Check](https://optischedule-cwl5.onrender.com/api/health)
+
 ## 🛠️ Installation & Setup Instructions
 
 ### 🔁 Clone the Repository
 
 ```bash
-git clone https://github.com/SHUBHHAM-0712/Time-Table-Generator.git
-cd Time-Table-Generator
+git clone https://github.com/SHUBHHAM-0712/OptiSchedule.git
+cd OptiSchedule
 ```
 
 ### 📦 Install Dependencies
@@ -133,8 +140,6 @@ The scheduler uses **Constraint Satisfaction Problem (CSP)** algorithms:
 - Uses backtracking search with MRV heuristics
 - Exports optimized schedule to multiple formats
 
-For detailed algorithm explanation, see **[TIMETABLE_LOGIC.md](./TIMETABLE_LOGIC.md)**.
-
 ## 👨‍💻 Team: Core Contributors
 
 - [Shubham](https://github.com/shubham) — Lead Developer
@@ -160,12 +165,6 @@ For detailed algorithm explanation, see **[TIMETABLE_LOGIC.md](./TIMETABLE_LOGIC
 **Tests:**
 
 - `tests/` — Pytest suite (scheduler, ingestion, export, merge logic)
-
-## 📚 Documentation
-
-- **[TIMETABLE_LOGIC.md](./TIMETABLE_LOGIC.md)** — Algorithm deep-dive
-- **[SQL Schema](./sql/)** — Database documentation
-- **[API Docs](http://localhost:8000/docs)** — Interactive Swagger UI
 
 ## 🤝 Contributing
 
