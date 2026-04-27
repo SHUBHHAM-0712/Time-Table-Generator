@@ -53,7 +53,7 @@ DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE
 ### 🗄️ Initialize Database
 
 ```bash
-python3 -m py_timetable init-db
+python -m py_timetable init-db
 ```
 
 This will run SQL migrations in order:
@@ -67,19 +67,19 @@ This will run SQL migrations in order:
 ### Step 1: Load Course Data
 
 ```bash
-python3 -m py_timetable load --csv /path/to/courses.csv
+python -m py_timetable load --csv /path/to/courses.csv
 ```
 
 ### Step 2: Generate Timetable
 
 ```bash
-python3 -m py_timetable schedule --label "autumn-run" --term autumn --timeout 300
+python -m py_timetable schedule --label "autumn-run" --term autumn --timeout 300
 ```
 
 ### Step 3: Export Results
 
 ```bash
-python3 -m py_timetable export --run-id 1 --out output
+python -m py_timetable export --run-id 1 --out output
 ```
 
 Generates:
@@ -94,7 +94,7 @@ Generates:
 Start the interactive web interface:
 
 ```bash
-python3 -m py_timetable serve
+python -m py_timetable serve
 ```
 
 Then open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.
