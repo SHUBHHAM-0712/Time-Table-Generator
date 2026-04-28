@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import psycopg2
 from psycopg2.extensions import connection as PgConnection
@@ -13,7 +13,7 @@ from .db import fetch_all
 
 @dataclass
 class SlotInfo:
-    slot_id: int
+    slot_id: int        
     day: str
     order_index: int
 
@@ -27,9 +27,117 @@ class LectureVar:
     course_id: int
     lecture_index: int
     batch_size: int
+    # For merged lectures: list of (batch_id, batch_size) tuples
+    merged_batches: list[tuple[int, int]] = field(default_factory=list)
+    is_merged: bool = False
+
+
+# Allowed batches for merging
+MERGEABLE_BATCH_PROGRAMS = {"ICTB", "MNC", "EVD", "CS"}
+
+
+def _extract_program_from_batch_code(batch_code: str) -> str:
+    """Extract program code from batch_code (e.g., 'ICTB' from 'ICTB-S1')."""
+    if isinstance(batch_code, str):
+        parts = batch_code.split("-")
+        return parts[0] if parts else ""
+    return ""
 
 
 # ---------------- LOAD DATA ---------------- #
+
+def merge_batches_by_course_and_faculty(rows: list[dict]) -> list[dict]:
+    """
+    Merge rows for batches that have the same course_code and faculty,
+    combining them into single offerings with merged batch information.
+    
+    IMPORTANT: Only batches from the allowed programs (ICTB, MNC, EVD, CS) are merged.
+    Batches from other programs (e.g., ICTA) are kept separate in all cases.
+    
+    Returns list of merged rows, where:
+    - Each row represents a unique (course_code, faculty_id, semester) combination
+    - batch_id is the first batch in the group
+    - All merged batch IDs and sizes are stored in merged_batch_ids and merged_batch_sizes
+    - is_merged flag indicates if this row represents multiple batches
+    
+    Note: Merging only happens if all rows have 'course_code', 'semester', and 'batch_code' fields.
+    If these fields are missing (e.g., in tests), rows are returned as-is with
+    metadata initialized.
+    """
+    # Check if rows have necessary fields for merging
+    if not rows or not all("course_code" in r and "semester" in r for r in rows):
+        # No merging possible; just add metadata and return
+        result = []
+        for row in rows:
+            r = row.copy()
+            r["merged_batch_ids"] = r.get("merged_batch_ids", [int(r["batch_id"])])
+            r["merged_batch_sizes"] = r.get("merged_batch_sizes", [int(r["batch_size"])])
+            r["is_merged"] = r.get("is_merged", False)
+            r["total_batch_size"] = r.get("total_batch_size", int(r["batch_size"]))
+            result.append(r)
+        return result
+    
+    # Group by (course_code, faculty_id, semester)
+    groups = {}
+    for row in rows:
+        key = (
+            str(row["course_code"]),
+            int(row["faculty_id"]),
+            int(row["semester"]),
+        )
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(row)
+    
+    merged_rows = []
+    for group in groups.values():
+        # Separate batches into mergeable and non-mergeable
+        mergeable_batches = []
+        non_mergeable_batches = []
+        
+        for row in group:
+            program = _extract_program_from_batch_code(str(row.get("batch_code", "")))
+            if program in MERGEABLE_BATCH_PROGRAMS:
+                mergeable_batches.append(row)
+            else:
+                non_mergeable_batches.append(row)
+        
+        # Process mergeable batches
+        if len(mergeable_batches) > 1:
+            # Multiple mergeable batches → merge them
+            merged_row = mergeable_batches[0].copy()
+            merged_batch_ids = [int(r["batch_id"]) for r in mergeable_batches]
+            merged_batch_sizes = [int(r["batch_size"]) for r in mergeable_batches]
+            total_size = sum(merged_batch_sizes)
+            
+            merged_row["merged_batch_ids"] = merged_batch_ids
+            merged_row["merged_batch_sizes"] = merged_batch_sizes
+            merged_row["total_batch_size"] = total_size
+            merged_row["is_merged"] = True
+            merged_row["batch_id"] = merged_batch_ids[0]
+            merged_row["batch_size"] = total_size
+            
+            merged_rows.append(merged_row)
+        elif len(mergeable_batches) == 1:
+            # Single mergeable batch → keep separate
+            row = mergeable_batches[0].copy()
+            row["merged_batch_ids"] = [int(row["batch_id"])]
+            row["merged_batch_sizes"] = [int(row["batch_size"])]
+            row["is_merged"] = False
+            row["total_batch_size"] = int(row["batch_size"])
+            merged_rows.append(row)
+        
+        # Process non-mergeable batches (each stays separate)
+        for row in non_mergeable_batches:
+            r = row.copy()
+            r["merged_batch_ids"] = [int(r["batch_id"])]
+            r["merged_batch_sizes"] = [int(r["batch_size"])]
+            r["is_merged"] = False
+            r["total_batch_size"] = int(r["batch_size"])
+            merged_rows.append(r)
+    
+    return merged_rows
+
 
 def load_slots(conn):
     rows = fetch_all(
@@ -55,18 +163,31 @@ def build_vars(rows):
     idx = 0
     for r in rows:
         lh = int(r["lecture_hours"])
+        merged_batch_ids = r.get("merged_batch_ids", [int(r["batch_id"])])
+        merged_batch_sizes = r.get("merged_batch_sizes", [int(r["batch_size"])])
+        is_merged = r.get("is_merged", False)
+        total_size = r.get("total_batch_size", int(r["batch_size"]))
+        
         for k in range(lh):
-            vars_.append(
-                LectureVar(
-                    idx,
-                    r["assignment_id"],
-                    r["faculty_id"],
-                    r["batch_id"],
-                    r["course_id"],
-                    k + 1,
-                    r["batch_size"],
-                )
+            lecture_var = LectureVar(
+                idx,
+                r["assignment_id"],
+                r["faculty_id"],
+                int(r["batch_id"]),  # Primary batch ID
+                r["course_id"],
+                k + 1,
+                total_size,  # Use combined size for room allocation
             )
+            
+            # Store merged batch information
+            if is_merged:
+                lecture_var.is_merged = True
+                lecture_var.merged_batches = list(zip(merged_batch_ids, merged_batch_sizes))
+            else:
+                lecture_var.is_merged = False
+                lecture_var.merged_batches = [(int(r["batch_id"]), int(r["batch_size"]))]
+            
+            vars_.append(lecture_var)
             idx += 1
     return vars_
 
@@ -138,8 +259,19 @@ def greedy_assign(vars_, slots, rooms):
         candidates = []
         for s in slots:
             # Hard constraint: one lecture of same course per batch per day.
-            if (v.batch_id, v.course_id, s.day) in batch_course_day_busy:
-                continue
+            # For merged lectures, check ALL batches in the merged group
+            if v.is_merged:
+                # Check if any batch in the merged group is busy for this course on this day
+                skip_slot = False
+                for batch_id, _ in v.merged_batches:
+                    if (batch_id, v.course_id, s.day) in batch_course_day_busy:
+                        skip_slot = True
+                        break
+                if skip_slot:
+                    continue
+            else:
+                if (v.batch_id, v.course_id, s.day) in batch_course_day_busy:
+                    continue
 
             fac_key = (v.faculty_id, s.day)
             fac_day = faculty_day_slots.get(fac_key, set())
@@ -156,8 +288,20 @@ def greedy_assign(vars_, slots, rooms):
 
                 if (v.faculty_id, s.slot_id) in faculty_busy:
                     continue
-                if (v.batch_id, s.slot_id) in batch_busy:
-                    continue
+                
+                # For merged lectures, check that NONE of the batches have a conflict
+                if v.is_merged:
+                    skip_room = False
+                    for batch_id, _ in v.merged_batches:
+                        if (batch_id, s.slot_id) in batch_busy:
+                            skip_room = True
+                            break
+                    if skip_room:
+                        continue
+                else:
+                    if (v.batch_id, s.slot_id) in batch_busy:
+                        continue
+                
                 if (r["room_id"], s.slot_id) in room_busy:
                     continue
 
@@ -167,13 +311,21 @@ def greedy_assign(vars_, slots, rooms):
         if not candidates:
             return None  # fail fast
 
-        _, _, best_s, best_r = min(candidates, key=lambda x: (x[0], x[1]))
+        _, _, best_s, best_r = min(candidates, key=lambda x: (x[1], x[1]))
 
         assignment[v.var_index] = (best_s.slot_id, best_r["room_id"])
         faculty_busy.add((v.faculty_id, best_s.slot_id))
-        batch_busy.add((v.batch_id, best_s.slot_id))
+        
+        # Mark all merged batches as busy
+        if v.is_merged:
+            for batch_id, _ in v.merged_batches:
+                batch_busy.add((batch_id, best_s.slot_id))
+                batch_course_day_busy.add((batch_id, v.course_id, best_s.day))
+        else:
+            batch_busy.add((v.batch_id, best_s.slot_id))
+            batch_course_day_busy.add((v.batch_id, v.course_id, best_s.day))
+        
         room_busy.add((best_r["room_id"], best_s.slot_id))
-        batch_course_day_busy.add((v.batch_id, v.course_id, best_s.day))
         faculty_day_slots.setdefault((v.faculty_id, best_s.day), set()).add(best_s.order_index)
 
     return assignment
@@ -187,6 +339,9 @@ def run_scheduler(conn: PgConnection, label: str, source_csv: str, timeout_secon
     if not rows:
         raise RuntimeError("No data found")
 
+    # Merge batches with same course and faculty
+    rows = merge_batches_by_course_and_faculty(rows)
+
     slots = load_slots(conn)
     rooms = load_rooms(conn)
     slot_capacity = len(slots)
@@ -195,14 +350,18 @@ def run_scheduler(conn: PgConnection, label: str, source_csv: str, timeout_secon
     batch_load: dict[int, tuple[str, int]] = {}
     faculty_load: dict[int, tuple[str, int]] = {}
     for r in rows:
-        bid = int(r["batch_id"])
-        bcode = str(r["batch_code"])
+        # For feasibility checks, calculate load for each individual batch
+        merged_batch_ids = r.get("merged_batch_ids", [int(r["batch_id"])])
         fid = int(r["faculty_id"])
         fshort = str(r["faculty_short"])
         lh = int(r["lecture_hours"])
 
-        prev_b = batch_load.get(bid, (bcode, 0))
-        batch_load[bid] = (prev_b[0], prev_b[1] + lh)
+        # Each batch in merged group gets the full lecture hours
+        # (they all attend the same merged lecture)
+        for bid in merged_batch_ids:
+            bcode = str(r["batch_code"])  # Will be same for all in group
+            prev_b = batch_load.get(bid, (bcode, 0))
+            batch_load[bid] = (prev_b[0], prev_b[1] + lh)
 
         prev_f = faculty_load.get(fid, (fshort, 0))
         faculty_load[fid] = (prev_f[0], prev_f[1] + lh)
@@ -304,15 +463,25 @@ def run_scheduler(conn: PgConnection, label: str, source_csv: str, timeout_secon
     rows_to_insert = []
     for v in vars_:
         slot_id, room_id = solution[v.var_index]
-        rows_to_insert.append(
-            (run_id, v.assignment_id, v.batch_id, room_id, slot_id, v.lecture_index)
-        )
+        
+        # For merged lectures, insert ONE row with all merged batch IDs tracked
+        if v.is_merged:
+            # Track all batch IDs in the merge as comma-separated string
+            merged_batch_ids = ",".join(str(b[0]) for b in v.merged_batches)
+            batch_id = v.merged_batches[0][0]  # Use first batch as representative
+            rows_to_insert.append(
+                (run_id, v.assignment_id, batch_id, room_id, slot_id, v.lecture_index, merged_batch_ids, True)
+            )
+        else:
+            rows_to_insert.append(
+                (run_id, v.assignment_id, v.batch_id, room_id, slot_id, v.lecture_index, None, False)
+            )
 
     execute_values(
         conn.cursor(),
         """
         INSERT INTO master_timetable
-        (run_id, assignment_id, batch_id, room_id, slot_id, lecture_index)
+        (run_id, assignment_id, batch_id, room_id, slot_id, lecture_index, merged_batch_ids, is_merged)
         VALUES %s
         """,
         rows_to_insert,
@@ -369,9 +538,9 @@ def _mirror_run_to_legacy_tables(conn: PgConnection, run_id: int) -> None:
                     f.faculty_id,
                     c.code,
                     c.title,
-                    sb.batch_size,
-                    1,
-                    FALSE,
+                    COUNT(DISTINCT mt.batch_id) * MAX(sb.batch_size) AS total_students,
+                    COUNT(DISTINCT mt.batch_id) AS batch_count,
+                    CASE WHEN COUNT(DISTINCT mt.batch_id) > 1 THEN TRUE ELSE FALSE END AS merged,
                     CONCAT(mt.run_id, ':', mt.assignment_id, ':', mt.slot_id, ':', mt.lecture_index),
                     f.short_name
                 FROM master_timetable mt
@@ -380,6 +549,7 @@ def _mirror_run_to_legacy_tables(conn: PgConnection, run_id: int) -> None:
                 JOIN faculty f ON f.faculty_id = fcm.faculty_id
                 JOIN student_batch sb ON sb.batch_id = mt.batch_id
                 WHERE mt.run_id = %s
+                GROUP BY mt.run_id, mt.assignment_id, mt.room_id, mt.slot_id, mt.lecture_index, c.course_id, f.faculty_id, c.code, c.title, f.short_name
                 ON CONFLICT (run_id, assignment_id, slot_id) DO NOTHING
                 """,
                 (run_id,),

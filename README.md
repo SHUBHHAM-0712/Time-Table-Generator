@@ -1,75 +1,183 @@
-# Timetable Generator (Group I)
+# 📚 OptiSchedule - Intelligent Time Table Generator & Academic Scheduling Platform
 
-## Requirements
+> **Enable seamless timetable generation for academic institutions with support for multiple semesters, secure data management, and standardized APIs.**
+
+## 🚀 Problem Statement – _Academic Scheduling Challenge_
+
+> "Enable automated timetable generation for educational institutions with support for multiple batches, secure constraint satisfaction, and standardized export formats."
+
+## 🧩 Key Features
+
+- ✅ Standardized Interface — Easily integrates with academic institutions and their existing systems.
+- ✅ Multi-Semester Support — Built with Autumn (1,3,5) and Winter (2,4,6) semester scheduling.
+- ✅ Secure Data Management — Manages course data, faculty availability, and room constraints securely.
+- ✅ Intelligent Batch Merging — Automatically detects and merges lectures for multiple batches taught by the same faculty.
+- ✅ Multi-Format Export — Clean Excel, PDF, and CSV outputs with customizable views.
+- ✅ Web UI Interface — Interactive browser-based interface for scheduling, preview, and download.
+
+## 📦 Tech Stack
 
 - Python 3.11+
-- PostgreSQL (e.g. Supabase) and `DATABASE_URL` in `.env`
+- FastAPI (Uvicorn)
+- PostgreSQL Database
+- Pandas (Data Processing)
+- OpenPyXL (Excel)
+- ReportLab (PDF)
+- Psycopg2 (DB Driver)
 
-## Setup
+## 🌍 Live Deployed Website
 
-1. `.env`:
+The project is live on Render:
 
-```env
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE
+- 🔗 [OptiSchedule Live App](https://optischedule-cwl5.onrender.com/)
+- ❤️ [Health Check](https://optischedule-cwl5.onrender.com/api/health)
+
+## 🛠️ Installation & Setup Instructions
+
+### 🔁 Clone the Repository
+
+```bash
+git clone https://github.com/SHUBHHAM-0712/OptiSchedule.git
+cd OptiSchedule
 ```
 
-If the password contains `@` or other reserved characters, percent-encode them (e.g. `@` → `%40`). The loader also accepts the typo key `DATABSE_URL`.
-
-2. Dependencies:
+### 📦 Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Use **`python3`** to run the app if your system has no `python` command (common on Debian/Ubuntu unless `python-is-python3` is installed).
+### 🏗️ Configure Environment
 
-3. **Database** — run the SQL files in order in your client (or use `python3 -m py_timetable init-db`):
+Create a `.env` file with your database URL:
 
-| Order | File |
-|-------|------|
-| 1 | `sql/001_schema.sql` — DDL |
-| 2 | `sql/002_seed.sql` — config, time grid, academic catalog |
-| 3 | `sql/003_rooms_actual.sql` — real room codes (clears `master_timetable` / runs if present) |
-
-## Data flow (DB → schedule → output)
-
-1. **Optional CSV import** — bulk load or refresh offerings (does not replace `time_matrix` unless you pass `--slots`):
-
-```bash
-python3 -m py_timetable load --csv /path/to/semester.csv
+```env
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE
 ```
 
-2. **Generate** — reads offerings from `batch_course_map`. Use `--term autumn` (semesters 1,3,5), `--term winter` (2,4,6), or `--term all` (default):
+> If password contains `@` or special characters, percent-encode them (e.g., `@` → `%40`).
+
+### 🗄️ Initialize Database
 
 ```bash
-python3 -m py_timetable schedule --label "autumn-run" --term autumn --timeout 300
+python -m py_timetable init-db
 ```
 
-3. **Export**:
+This will run SQL migrations in order:
+
+1. `sql/001_schema.sql` — DDL (tables, constraints)
+2. `sql/002_seed.sql` — Seed data (config, time grid)
+3. `sql/003_rooms_actual.sql` — Room inventory
+
+## 🧪 Quick Start
+
+### Step 1: Load Course Data
 
 ```bash
-python3 -m py_timetable export --run-id 1 --out output
+python -m py_timetable load --csv /path/to/courses.csv
 ```
 
-### Web UI
+### Step 2: Generate Timetable
 
 ```bash
-python3 -m py_timetable serve
+python -m py_timetable schedule --label "autumn-run" --term autumn --timeout 300
 ```
 
-Then open [http://127.0.0.1:8000](http://127.0.0.1:8000): pick Autumn / Winter / All when generating; CSV upload is optional (to replace DB data), preview timetables, download Excel/PDF as a ZIP.
+### Step 3: Export Results
 
-## Constraints (summary)
+```bash
+python -m py_timetable export --run-id 1 --out output
+```
 
-- **Hard:** no double-booking of room, faculty, or batch in a slot; room capacity ≥ batch size; at most one lecture of the same course per batch per calendar day.
-- **Soft:** swaps that preserve hard constraints to reduce back-to-back faculty periods.
-- **Note:** “max 3 subjects per faculty” is reported when violated in the dataset; it is not a hard constraint.
+Generates:
 
-## Package layout
+- `schedule_by_batch.xlsx` — Per-batch timetable
+- `schedule_by_room.xlsx` — Per-room timetable
+- `schedule.pdf` — Printable schedule
+- `schedule.csv` — Raw data export
 
-- `py_timetable/ingest.py` — CSV → relational model  
-- `py_timetable/csp_schedule.py` — CSP + soft polishing  
-- `py_timetable/export_views.py` — Excel / PDF  
-- `py_timetable/db.py` — connection and `init-db`  
-- `py_timetable/superblock.py` — Union–Find helper for extensions  
-- `py_timetable/web/` — FastAPI UI (`serve` command)  
+## 🌐 Web UI
+
+Start the interactive web interface:
+
+```bash
+python -m py_timetable serve
+```
+
+Then open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.
+
+**Features:**
+
+- Generate timetable (pick Autumn / Winter / All)
+- Upload CSV to refresh data (optional)
+- Preview timetables in browser
+- Download Excel/PDF as ZIP
+
+## 🔐 Security Considerations
+
+- Uses secure PostgreSQL database for data persistence.
+- Enforces strict constraint validation for scheduling accuracy.
+- Isolated backend architecture prevents data leaks.
+- Session-aware database schema ensures data integrity.
+
+## 🌱 Future Enhancements
+
+- Add support for additional academic programs (e.g., Executive, Online).
+- Implement AI-based conflict prediction and resolution.
+- UI/UX improvements with theme customization.
+- Real-time notification system for schedule changes.
+- **Database Integration**: Enhanced NoSQL support for scalability and performance.
+- Advanced analytics dashboard for resource utilization.
+- Multi-language support for global institutions.
+
+## 🧩 How It Works
+
+The scheduler uses **Constraint Satisfaction Problem (CSP)** algorithms:
+
+- Models courses, batches, faculty as variables
+- Applies hard constraints (no double-booking, capacity limits)
+- Optimizes soft constraints (minimize back-to-back faculty periods)
+- Uses backtracking search with MRV heuristics
+- Exports optimized schedule to multiple formats
+
+## 👨‍💻 Team: Core Contributors
+
+- [Shubham](https://github.com/shubham) — Lead Developer
+- [Pranshu](https://github.com/pranshu) — Core Contributor
+
+## 📝 Project Structure
+
+**Core Modules:**
+
+- `py_timetable/__main__.py` — CLI entry point
+- `py_timetable/csp_schedule.py` — CSP solver & constraint engine
+- `py_timetable/ingest.py` — CSV ingestion & normalization
+- `py_timetable/db.py` — Database operations
+- `py_timetable/export_views.py` — Excel / PDF / CSV export
+- `py_timetable/web/` — FastAPI UI
+
+**SQL Migrations:**
+
+- `sql/001_schema.sql` — DDL
+- `sql/002_seed.sql` — Seed data
+- `sql/003_rooms_actual.sql` — Room inventory
+
+**Tests:**
+
+- `tests/` — Pytest suite (scheduler, ingestion, export, merge logic)
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Commit changes (`git commit -m "feat: Add feature"`)
+4. Push to branch (`git push origin feature/your-feature`)
+5. Open a Pull Request
+
+---
+
+<div align="center">
+
+**Made with ❤️ for educational institutions**
+
+</div>

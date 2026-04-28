@@ -1,371 +1,579 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Timetable Generator</title>
-  <link rel="stylesheet" href="/static/style.css" />
-</head>
-<body>
-  <h1>Timetable Generator</h1>
-  <p class="hint">PostgreSQL + CSP scheduler. Configure <code>DATABASE_URL</code> in <code>.env</code>.</p>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Timetable Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="icon" type="image/png" href="/static/tt-fevicon.png" />
+  </head>
+  <body>
+    <main class="app-container">
+      <!-- Navigation Header -->
+      <header class="navbar">
+        <div class="navbar-content">
+          <div class="navbar-brand">
+            <h1>OptiSchedule</h1>
+            <p>Timetable Generator</p>
+          </div>
+          <div id="db-status" class="status-indicator">Checking database…</div>
+        </div>
+      </header>
 
-  <section>
-    <div id="db-status" class="status">Checking database…</div>
-    <div class="grid-stats" id="meta"></div>
-  </section>
+      <!-- Main Content -->
+      <div class="content-wrapper">
+        <!-- Hero Section -->
+        <section class="hero-section">
+          <div class="hero-content">
+            <div>
+              <h2 class="hero-title">Academic Schedule Management</h2>
+              <p class="hero-description">
+                Build constraint-aware timetables, inspect scheduling runs, and
+                export results from a clean, modern interface.
+              </p>
+            </div>
+            <div class="metrics-grid" id="meta"></div>
+          </div>
+        </section>
 
-  <section>
-    <h2>Replace catalog from CSV (optional)</h2>
-    <p class="hint">
-      After <code>init-db</code>, offerings and rooms live in PostgreSQL. Use this only if you want to overwrite the DB from your own academic CSV; scheduling below reads from the DB.
-    </p>
-    <form id="form-load">
-      <label>Academic CSV</label>
-      <input type="file" name="academic" accept=".csv" />
-      <label>Time slots CSV (optional)</label>
-      <input type="file" name="slots" accept=".csv" />
-      <div><button type="submit" class="primary">Upload &amp; ingest</button></div>
-    </form>
-    <pre id="load-out" class="raw" hidden></pre>
-  </section>
+        <!-- Data Ingest Section -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Data Ingest</h3>
+              <p class="card-description">
+                Upload and refresh catalog data from CSV files
+              </p>
+            </div>
+          </div>
+          <form id="form-load" class="form-container">
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="academic-csv">Academic Data</label>
+                <input
+                  id="academic-csv"
+                  type="file"
+                  name="academic"
+                  accept=".csv"
+                  class="file-input"
+                />
+              </div>
+              <div class="form-field">
+                <label for="slots-csv">Time Slots (Optional)</label>
+                <input
+                  id="slots-csv"
+                  type="file"
+                  name="slots"
+                  accept=".csv"
+                  class="file-input"
+                />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">
+                Upload &amp; Ingest
+              </button>
+            </div>
+          </form>
+          <pre id="load-out" class="output-panel" hidden></pre>
+        </section>
 
-  <section>
-    <h2>Generate schedule</h2>
-    <p class="hint">
-      Chooses which semester cohort to include: <strong>Autumn</strong> = semesters 1, 3, 5 (like <code>autumn.csv</code>); <strong>Winter</strong> = 2, 4, 6 (like <code>winter.csv</code>); <strong>All</strong> = everything in <code>batch_course_map</code>.
-    </p>
-    <form id="form-schedule">
-      <label>Term</label>
-      <select name="term">
-        <option value="all" selected>All semesters</option>
-        <option value="autumn">Autumn (1, 3, 5)</option>
-        <option value="winter">Winter (2, 4, 6)</option>
-      </select>
-      <label>Label</label>
-      <input type="text" name="label" value="web" />
-      <label>Source note</label>
-      <input type="text" name="source" value="db" />
-      <label>Timeout (seconds)</label>
-      <input type="number" name="timeout" id="schedule-timeout" value="180" min="30" max="600" />
-      <div><button type="submit" class="primary" id="btn-schedule">Run scheduler</button></div>
-    </form>
-    <div id="schedule-banner" class="running-banner" hidden role="status" aria-live="polite">
-      <span class="spinner" aria-hidden="true"></span>
-      <span><strong>Scheduler running on the server</strong> — <span id="schedule-elapsed">0</span>s elapsed</span>
-      <span class="running-hint" id="schedule-hint"></span>
-    </div>
-    <pre id="schedule-out" class="raw" hidden></pre>
-  </section>
+        <!-- Schedule Generation Section -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Generate Schedule</h3>
+              <p class="card-description">
+                Configure and run the timetable scheduler
+              </p>
+            </div>
+          </div>
+          <form id="form-schedule" class="form-container">
+            <div class="form-grid form-grid-4">
+              <div class="form-field">
+                <label for="schedule-term">Term</label>
+                <select id="schedule-term" name="term" class="select-input">
+                  <option value="all" selected>All Semesters</option>
+                  <option value="autumn">Autumn (1, 3, 5)</option>
+                  <option value="winter">Winter (2, 4, 6)</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="schedule-label">Label</label>
+                <input
+                  id="schedule-label"
+                  type="text"
+                  name="label"
+                  value="web"
+                  class="text-input"
+                />
+              </div>
+              <div class="form-field">
+                <label for="schedule-source">Source Note</label>
+                <input
+                  id="schedule-source"
+                  type="text"
+                  name="source"
+                  value="db"
+                  class="text-input"
+                />
+              </div>
+              <div class="form-field">
+                <label for="schedule-timeout">Timeout (seconds)</label>
+                <input
+                  id="schedule-timeout"
+                  type="number"
+                  name="timeout"
+                  value="180"
+                  min="30"
+                  max="600"
+                  class="text-input"
+                />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" id="btn-schedule">
+                Run Scheduler
+              </button>
+            </div>
+          </form>
 
-  <section>
-    <h2>Runs</h2>
-    <button type="button" id="btn-refresh-runs">Refresh</button>
-    <table class="data" id="runs-table">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Label</th>
-          <th>Status</th>
-          <th>Created</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </section>
+          <div
+            id="schedule-banner"
+            class="status-banner"
+            hidden
+            role="status"
+            aria-live="polite"
+          >
+            <span class="spinner"></span>
+            <div class="banner-content">
+              <p class="banner-title">Scheduler Running</p>
+              <p class="banner-text">
+                <span id="schedule-elapsed">0</span>s elapsed
+                <span id="schedule-hint"></span>
+              </p>
+            </div>
+          </div>
+          <pre id="schedule-out" class="output-panel" hidden></pre>
+        </section>
 
-  <section id="preview-section" hidden>
-    <h2>Preview</h2>
-    <div class="tabs" id="preview-tabs"></div>
-    <div id="preview-table" class="preview-wrap"></div>
-    <pre id="preview-conflicts" class="raw" hidden></pre>
-  </section>
+        <!-- Runs Section -->
+        <section class="card">
+          <div class="card-header card-header-inline">
+            <div>
+              <h3 class="card-title">Runs</h3>
+              <p class="card-description">
+                Preview or export the latest generated timetable runs
+              </p>
+            </div>
+            <button
+              type="button"
+              id="btn-refresh-runs"
+              class="btn btn-secondary"
+            >
+              Refresh
+            </button>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table" id="runs-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Label</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
 
-  <script>
-    const $ = (s) => document.querySelector(s);
+        <!-- Preview Section -->
+        <section id="preview-section" hidden class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Preview</h3>
+              <p class="card-description">
+                Switch between batch, faculty, and room views
+              </p>
+            </div>
+          </div>
+          <div class="tabs-group" id="preview-tabs"></div>
+          <div
+            class="tabs-group tabs-group-secondary"
+            id="preview-subtabs"
+          ></div>
+          <div class="preview-container" id="preview-table"></div>
+          <pre id="preview-conflicts" class="output-panel" hidden></pre>
+        </section>
+      </div>
+    </main>
 
-    async function refreshHealth() {
-      const el = $("#db-status");
-      try {
-        const r = await fetch("/api/health");
-        const j = await r.json();
-        if (j.ok) {
-          el.textContent = "Database connected.";
-          el.className = "status ok";
-        } else {
-          el.textContent = "Database error: " + (j.error || r.status);
-          el.className = "status err";
-        }
-      } catch (e) {
-        el.textContent = "Cannot reach API: " + e;
-        el.className = "status err";
-      }
-    }
+    <script>
+      const $ = (sel) => document.querySelector(sel);
 
-    async function refreshMeta() {
-      try {
-        const j = await fetch("/api/meta").then((r) => r.json());
-        if (j.detail) return;
-        $("#meta").innerHTML = [
-          ["Faculty", j.faculty],
-          ["Courses", j.course],
-          ["Batches", j.student_batch],
-          ["Rooms", j.room],
-          ["Time slots", j.time_slot],
-          ["Enrollments", j.batch_course_map],
-        ]
-          .map(([k, v]) => `<span><strong>${k}</strong>: ${v}</span>`)
-          .join("");
-      } catch (_) {}
-    }
-
-    $("#form-load").onsubmit = async (ev) => {
-      ev.preventDefault();
-      const fd = new FormData(ev.target);
-      const out = $("#load-out");
-      out.hidden = false;
-      out.textContent = "Uploading…";
-      try {
-        const r = await fetch("/api/load", { method: "POST", body: fd });
-        const j = await r.json();
-        out.textContent = JSON.stringify(j, null, 2);
-        refreshMeta();
-      } catch (e) {
-        out.textContent = String(e);
-      }
-    };
-
-    $("#form-schedule").onsubmit = async (ev) => {
-      ev.preventDefault();
-      const form = ev.target;
-      const fd = new FormData(form);
-      const out = $("#schedule-out");
-      const banner = $("#schedule-banner");
-      const elapsedEl = $("#schedule-elapsed");
-      const hintEl = $("#schedule-hint");
-      const btn = $("#btn-schedule");
-      const timeoutSec = Math.max(30, parseInt(String(fd.get("timeout") || "180"), 10) || 180);
-
-      out.hidden = false;
-      out.textContent = "Waiting for server…";
-      banner.hidden = false;
-      hintEl.textContent = ` (may run up to ${timeoutSec}s — CSP is CPU-heavy; page stays open until it finishes)`;
-      btn.disabled = true;
-      form.querySelectorAll("input, select, button").forEach((el) => {
-        if (el !== btn) el.disabled = true;
-      });
-
-      const t0 = Date.now();
-      elapsedEl.textContent = "0";
-      const tick = setInterval(() => {
-        elapsedEl.textContent = String(Math.floor((Date.now() - t0) / 1000));
-      }, 500);
-      banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
-
-      try {
-        const r = await fetch("/api/schedule", { method: "POST", body: fd });
-        const text = await r.text();
-        let j;
+      async function refreshHealth() {
+        const el = $("#db-status");
         try {
-          j = JSON.parse(text);
+          const r = await fetch("/api/health");
+          el.textContent = r.ok ? "✓ Database OK" : "✗ Database down";
+          el.classList.toggle("ok", r.ok);
+          el.classList.toggle("error", !r.ok);
         } catch (_) {
-          j = { ok: false, parse_error: true, status: r.status, body: text.slice(0, 500) };
+          el.textContent = "✗ Database down";
+          el.classList.add("error");
         }
-        if (!r.ok) {
-          out.textContent =
-            typeof j.detail === "string"
-              ? `HTTP ${r.status}: ${j.detail}`
-              : `HTTP ${r.status}\n${JSON.stringify(j, null, 2)}`;
-        } else {
+      }
+
+      async function refreshMeta() {
+        try {
+          const j = await fetch("/api/meta").then((r) => r.json());
+          if (j.detail) return;
+          $("#meta").innerHTML = [
+            ["Faculty", j.faculty],
+            ["Courses", j.course],
+            ["Batches", j.student_batch],
+            ["Rooms", j.room],
+            ["Time slots", j.time_slot],
+            ["Enrollments", j.batch_course_map],
+          ]
+            .map(
+              ([k, v]) =>
+                `<div class="metric-card"><div class="metric-label">${k}</div><div class="metric-value">${v}</div></div>`,
+            )
+            .join("");
+        } catch (_) {}
+      }
+
+      $("#form-load").onsubmit = async (ev) => {
+        ev.preventDefault();
+        const fd = new FormData(ev.target);
+        const out = $("#load-out");
+        out.hidden = false;
+        out.textContent = "Uploading…";
+        try {
+          const r = await fetch("/api/load", { method: "POST", body: fd });
+          const j = await r.json();
           out.textContent = JSON.stringify(j, null, 2);
-          refreshRuns();
           refreshMeta();
+        } catch (e) {
+          out.textContent = String(e);
         }
-      } catch (e) {
-        out.textContent =
-          String(e) +
-          "\n\n(Network error or browser closed the connection. The server may still be working — check Runs or try a smaller term / higher timeout.)";
-      } finally {
-        clearInterval(tick);
-        banner.hidden = true;
-        btn.disabled = false;
+      };
+
+      $("#form-schedule").onsubmit = async (ev) => {
+        ev.preventDefault();
+        const form = ev.target;
+        const fd = new FormData(form);
+        const out = $("#schedule-out");
+        const banner = $("#schedule-banner");
+        const elapsedEl = $("#schedule-elapsed");
+        const hintEl = $("#schedule-hint");
+        const btn = $("#btn-schedule");
+        const timeoutSec = Math.max(
+          30,
+          parseInt(String(fd.get("timeout") || "180"), 10) || 180,
+        );
+
+        out.hidden = false;
+        out.textContent = "Waiting for server…";
+        banner.hidden = false;
+        hintEl.textContent = ` (may run up to ${timeoutSec}s — CSP is CPU-heavy)`;
+        btn.disabled = true;
         form.querySelectorAll("input, select, button").forEach((el) => {
-          el.disabled = false;
+          if (el !== btn) el.disabled = true;
         });
-      }
-    };
 
-    function fmtTime(t) {
-      if (!t) return "";
-      return String(t).slice(0, 5);
-    }
+        const t0 = Date.now();
+        elapsedEl.textContent = "0";
+        const tick = setInterval(() => {
+          elapsedEl.textContent = String(Math.floor((Date.now() - t0) / 1000));
+        }, 500);
+        banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
-    function buildGrid(events, cellFn) {
-      const days = ["Mon", "Tue", "Wed", "Thur", "Fri"];
-      const times = new Set();
-      events.forEach((e) => {
-        times.add(fmtTime(e.start_time) + "-" + fmtTime(e.end_time));
-      });
-      const timeList = Array.from(times).sort();
-      const rows = timeList.map((tm) => {
-        const tr = document.createElement("tr");
-        const td0 = document.createElement("td");
-        td0.textContent = tm;
-        tr.appendChild(td0);
-        days.forEach((d) => {
-          const td = document.createElement("td");
-          const match = events.find(
-            (e) =>
-              e.day_of_week === d &&
-              fmtTime(e.start_time) + "-" + fmtTime(e.end_time) === tm
-          );
-          td.textContent = match ? cellFn(match) : "";
-          tr.appendChild(td);
-        });
-        return tr;
-      });
-      const table = document.createElement("table");
-      table.className = "data";
-      const thead = document.createElement("thead");
-      const hr = document.createElement("tr");
-      hr.appendChild(document.createElement("th")).textContent = "Time";
-      days.forEach((d) => {
-        hr.appendChild(document.createElement("th")).textContent = d;
-      });
-      thead.appendChild(hr);
-      const tbody = document.createElement("tbody");
-      rows.forEach((r) => tbody.appendChild(r));
-      table.appendChild(thead);
-      table.appendChild(tbody);
-      return table;
-    }
-
-    async function showPreview(runId) {
-      const sec = $("#preview-section");
-      const tabs = $("#preview-tabs");
-      const box = $("#preview-table");
-      const cf = $("#preview-conflicts");
-      sec.hidden = false;
-      tabs.innerHTML = "";
-      box.innerHTML = "Loading…";
-      cf.hidden = true;
-
-      const events = await fetch(`/api/run/${runId}/events`).then((r) => r.json());
-      if (!events.length) {
-        const conflicts = await fetch(`/api/run/${runId}/conflicts`).then((r) => r.json());
-        box.innerHTML = "";
-        if (conflicts.length) {
-          cf.hidden = false;
-          cf.textContent = JSON.stringify(conflicts, null, 2);
-        } else {
-          box.textContent = "No timetable rows (failed run or empty).";
+        try {
+          const r = await fetch("/api/schedule", { method: "POST", body: fd });
+          const text = await r.text();
+          let j;
+          try {
+            j = JSON.parse(text);
+          } catch (_) {
+            j = {
+              ok: false,
+              parse_error: true,
+              status: r.status,
+              body: text.slice(0, 500),
+            };
+          }
+          if (!r.ok) {
+            out.textContent =
+              typeof j.detail === "string"
+                ? `HTTP ${r.status}: ${j.detail}`
+                : `HTTP ${r.status}\n${JSON.stringify(j, null, 2)}`;
+          } else {
+            out.textContent = JSON.stringify(j, null, 2);
+            refreshRuns();
+            refreshMeta();
+          }
+        } catch (e) {
+          out.textContent =
+            String(e) +
+            "\n\n(Network error or browser closed the connection. The server may still be working — check Runs or try a smaller term / higher timeout.)";
+        } finally {
+          clearInterval(tick);
+          banner.hidden = true;
+          btn.disabled = false;
+          form.querySelectorAll("input, select, button").forEach((el) => {
+            el.disabled = false;
+          });
         }
-        return;
+      };
+
+      function fmtTime(t) {
+        if (!t) return "";
+        return String(t).slice(0, 5);
       }
 
-      const batches = [...new Set(events.map((e) => e.batch_code))].sort();
-      const faculties = [...new Set(events.map((e) => e.faculty))].sort();
-      const rooms = [...new Set(events.map((e) => e.room_code))].sort();
-
-      const modes = [
-        { id: "b", label: "By batch", filter: batches, key: (e, id) => e.batch_code === id, cell: (e) => `${e.course_code} · ${e.faculty} · ${e.room_code}` },
-        { id: "f", label: "By faculty", filter: faculties, key: (e, id) => e.faculty === id, cell: (e) => `${e.course_code} · ${e.batch_code} · ${e.room_code}` },
-        { id: "r", label: "By room", filter: rooms, key: (e, id) => e.room_code === id, cell: (e) => `${e.course_code} · ${e.batch_code} · ${e.faculty}` },
-      ];
-
-      let modeIdx = 0;
-      let subId = modes[0].filter[0];
-
-      function render() {
-        const m = modes[modeIdx];
-        const sub = events.filter((e) => m.key(e, subId));
-        box.innerHTML = "";
-        box.appendChild(buildGrid(sub, m.cell));
+      function buildGrid(events, cellFn) {
+        const days = ["Mon", "Tue", "Wed", "Thur", "Fri"];
+        const times = new Set();
+        events.forEach((e) => {
+          times.add(fmtTime(e.start_time) + "-" + fmtTime(e.end_time));
+        });
+        const timeList = Array.from(times).sort();
+        const rows = timeList.map((tm) => {
+          const tr = document.createElement("tr");
+          const td0 = document.createElement("td");
+          td0.className = "time-cell";
+          td0.textContent = tm;
+          tr.appendChild(td0);
+          days.forEach((d) => {
+            const td = document.createElement("td");
+            const match = events.find(
+              (e) =>
+                e.day_of_week === d &&
+                fmtTime(e.start_time) + "-" + fmtTime(e.end_time) === tm,
+            );
+            if (match) {
+              const div = document.createElement("div");
+              div.className = "schedule-event";
+              div.textContent = cellFn(match);
+              td.appendChild(div);
+            }
+            tr.appendChild(td);
+          });
+          return tr;
+        });
+        const table = document.createElement("table");
+        table.className = "schedule-table";
+        const thead = document.createElement("thead");
+        const hr = document.createElement("tr");
+        const thTime = document.createElement("th");
+        thTime.className = "time-header";
+        thTime.textContent = "Time";
+        hr.appendChild(thTime);
+        days.forEach((d) => {
+          const th = document.createElement("th");
+          th.textContent = d;
+          hr.appendChild(th);
+        });
+        thead.appendChild(hr);
+        const tbody = document.createElement("tbody");
+        rows.forEach((r) => tbody.appendChild(r));
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        return table;
       }
 
-      modes.forEach((m, mi) => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.textContent = m.label;
-        b.onclick = () => {
-          modeIdx = mi;
-          subId = m.filter[0];
-          [...tabs.querySelectorAll("button")].forEach((x, i) => x.classList.toggle("active", i === modeIdx));
-          renderSubTabs();
-          render();
-        };
-        tabs.appendChild(b);
-      });
-      tabs.querySelector("button").classList.add("active");
+      async function showPreview(runId) {
+        const sec = $("#preview-section");
+        const tabs = $("#preview-tabs");
+        const subTabs = $("#preview-subtabs");
+        const box = $("#preview-table");
+        const cf = $("#preview-conflicts");
+        sec.hidden = false;
+        tabs.innerHTML = "";
+        subTabs.innerHTML = "";
+        box.innerHTML = "Loading…";
+        cf.hidden = true;
 
-      const subBar = document.createElement("div");
-      subBar.className = "tabs";
-      subBar.id = "preview-subtabs";
-      tabs.after(subBar);
+        const events = await fetch(`/api/run/${runId}/events`).then((r) =>
+          r.json(),
+        );
+        if (!events.length) {
+          const conflicts = await fetch(`/api/run/${runId}/conflicts`).then(
+            (r) => r.json(),
+          );
+          box.innerHTML = "";
+          if (conflicts.length) {
+            cf.hidden = false;
+            cf.textContent = JSON.stringify(conflicts, null, 2);
+          } else {
+            box.textContent = "No timetable rows (failed run or empty).";
+          }
+          return;
+        }
 
-      function renderSubTabs() {
-        subBar.innerHTML = "";
-        const m = modes[modeIdx];
-        m.filter.forEach((id) => {
+        const batches = [...new Set(events.map((e) => e.batch_code))].sort();
+        const faculties = [...new Set(events.map((e) => e.faculty))].sort();
+        const rooms = [...new Set(events.map((e) => e.room_code))].sort();
+
+        const modes = [
+          {
+            id: "b",
+            label: "By Batch",
+            filter: batches,
+            key: (e, id) => e.batch_code === id,
+            cell: (e) => `${e.course_code} · ${e.faculty} · ${e.room_code}`,
+          },
+          {
+            id: "f",
+            label: "By Faculty",
+            filter: faculties,
+            key: (e, id) => e.faculty === id,
+            cell: (e) => `${e.course_code} · ${e.batch_code} · ${e.room_code}`,
+          },
+          {
+            id: "r",
+            label: "By Room",
+            filter: rooms,
+            key: (e, id) => e.room_code === id,
+            cell: (e) => `${e.course_code} · ${e.batch_code} · ${e.faculty}`,
+          },
+        ];
+
+        let modeIdx = 0;
+        let subId = modes[0].filter[0];
+
+        function render() {
+          const m = modes[modeIdx];
+          const sub = events.filter((e) => m.key(e, subId));
+          box.innerHTML = "";
+          box.appendChild(buildGrid(sub, m.cell));
+        }
+
+        modes.forEach((m, mi) => {
           const b = document.createElement("button");
           b.type = "button";
-          b.textContent = id;
-          b.className = id === subId ? "active" : "";
+          b.className = "tab-btn";
+          b.textContent = m.label;
           b.onclick = () => {
-            subId = id;
-            [...subBar.querySelectorAll("button")].forEach((x) => {
-              x.classList.toggle("active", x.textContent === subId);
-            });
+            modeIdx = mi;
+            subId = m.filter[0];
+            [...tabs.querySelectorAll("button")].forEach((x, i) =>
+              x.classList.toggle("active", i === modeIdx),
+            );
+            renderSubTabs();
             render();
           };
-          subBar.appendChild(b);
+          tabs.appendChild(b);
+        });
+        tabs.querySelector("button").classList.add("active");
+
+        function renderSubTabs() {
+          subTabs.innerHTML = "";
+          const m = modes[modeIdx];
+          m.filter.forEach((id) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = "tab-btn tab-btn-sub";
+            b.textContent = id;
+            b.classList.toggle("active", id === subId);
+            b.onclick = () => {
+              subId = id;
+              [...subTabs.querySelectorAll("button")].forEach((x) => {
+                x.classList.toggle("active", x.textContent === subId);
+              });
+              render();
+            };
+            subTabs.appendChild(b);
+          });
+        }
+
+        renderSubTabs();
+        render();
+      }
+
+      async function refreshRuns() {
+        const tbody = $("#runs-table tbody");
+        tbody.innerHTML = "";
+        let runs = [];
+        try {
+          runs = await fetch("/api/runs").then((r) => r.json());
+        } catch (e) {
+          return;
+        }
+        runs.forEach((run) => {
+          const tr = document.createElement("tr");
+          const tdId = document.createElement("td");
+          const idSpan = document.createElement("span");
+          idSpan.className = "run-id";
+          idSpan.textContent = run.run_id;
+          tdId.appendChild(idSpan);
+
+          const tdLabel = document.createElement("td");
+          tdLabel.textContent = escapeHtml(run.label);
+
+          const tdStatus = document.createElement("td");
+          const badge = document.createElement("span");
+          badge.className = "status-badge";
+          badge.textContent = escapeHtml(run.status);
+          badge.classList.add(
+            "status-" +
+              (run.status === "success"
+                ? "success"
+                : run.status === "error"
+                  ? "error"
+                  : "pending"),
+          );
+          tdStatus.appendChild(badge);
+
+          const tdCreated = document.createElement("td");
+          tdCreated.textContent = String(run.created_at || "").slice(0, 19);
+
+          const tdActions = document.createElement("td");
+          const bp = document.createElement("button");
+          bp.className = "btn btn-small btn-secondary";
+          bp.textContent = "Preview";
+          bp.onclick = () => showPreview(run.run_id);
+          const bz = document.createElement("button");
+          bz.className = "btn btn-small btn-secondary";
+          bz.textContent = "ZIP";
+          bz.onclick = () => {
+            window.location.href = `/api/export/${run.run_id}/zip`;
+          };
+          tdActions.appendChild(bp);
+          tdActions.appendChild(bz);
+
+          tr.appendChild(tdId);
+          tr.appendChild(tdLabel);
+          tr.appendChild(tdStatus);
+          tr.appendChild(tdCreated);
+          tr.appendChild(tdActions);
+          tbody.appendChild(tr);
         });
       }
 
-      renderSubTabs();
-      render();
-    }
-
-    async function refreshRuns() {
-      const tbody = $("#runs-table tbody");
-      tbody.innerHTML = "";
-      let runs = [];
-      try {
-        runs = await fetch("/api/runs").then((r) => r.json());
-      } catch (e) {
-        return;
+      function escapeHtml(s) {
+        const d = document.createElement("div");
+        d.textContent = s;
+        return d.innerHTML;
       }
-      runs.forEach((run) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${run.run_id}</td><td>${escapeHtml(run.label)}</td><td>${escapeHtml(run.status)}</td><td>${String(run.created_at || "").slice(0, 19)}</td><td></td>`;
-        const td = tr.lastElementChild;
-        const bp = document.createElement("button");
-        bp.textContent = "Preview";
-        bp.onclick = () => showPreview(run.run_id);
-        const bz = document.createElement("button");
-        bz.textContent = "ZIP";
-        bz.onclick = () => {
-          window.location.href = `/api/export/${run.run_id}/zip`;
-        };
-        td.appendChild(bp);
-        td.appendChild(bz);
-        tbody.appendChild(tr);
-      });
-    }
 
-    function escapeHtml(s) {
-      const d = document.createElement("div");
-      d.textContent = s;
-      return d.innerHTML;
-    }
+      $("#btn-refresh-runs").onclick = refreshRuns;
 
-    $("#btn-refresh-runs").onclick = refreshRuns;
-
-    refreshHealth();
-    refreshMeta();
-    refreshRuns();
-    setInterval(refreshHealth, 30000);
-  </script>
-</body>
+      refreshHealth();
+      refreshMeta();
+      refreshRuns();
+      setInterval(refreshHealth, 30000);
+    </script>
+  </body>
 </html>

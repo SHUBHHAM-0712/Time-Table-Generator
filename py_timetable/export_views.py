@@ -12,25 +12,30 @@ from .db import fetch_all
 
 
 def fetch_timetable_events(conn: PgConnection, run_id: int) -> list[dict[str, Any]]:
-    """All scheduled rows for a run (for UI / JSON export)."""
+    """All scheduled rows for a run (for UI / JSON export).
+
+    Expands merged timetable rows so each batch in a merged group appears
+    as its own event. Returns one dict per (timetable row, actual batch).
+    """
     return _fetch_events(conn, run_id)
 
 
 def _fetch_events(conn: PgConnection, run_id: int) -> list[dict[str, Any]]:
-    return fetch_all(
+    # Fetch raw timetable rows including merge metadata
+    rows = fetch_all(
         conn,
         """
         SELECT
             mt.timetable_id,
+            mt.batch_id as rep_batch_id,
+            mt.merged_batch_ids,
+            COALESCE(mt.is_merged, FALSE) as is_merged,
             tm.day_of_week,
             tm.start_time,
             tm.end_time,
             c.code AS course_code,
             c.title AS course_title,
             f.short_name AS faculty,
-            sb.batch_code,
-            sb.program,
-            sb.semester,
             r.room_code,
             r.capacity
         FROM master_timetable mt
@@ -38,13 +43,91 @@ def _fetch_events(conn: PgConnection, run_id: int) -> list[dict[str, Any]]:
         JOIN faculty_course_map fcm ON fcm.assignment_id = mt.assignment_id
         JOIN faculty f ON f.faculty_id = fcm.faculty_id
         JOIN course c ON c.course_id = fcm.course_id
-        JOIN student_batch sb ON sb.batch_id = mt.batch_id
         JOIN room r ON r.room_id = mt.room_id
         WHERE mt.run_id = %s
-        ORDER BY tm.day_of_week, tm.start_time, sb.batch_code
+        ORDER BY tm.day_of_week, tm.start_time
         """,
         (run_id,),
     )
+
+    # Build a map of batch_id -> student_batch info for quick lookup
+    batch_ids = set()
+    for r in rows:
+        # representative batch
+        if r.get("rep_batch_id"):
+            batch_ids.add(int(r["rep_batch_id"]))
+        # merged batches (comma-separated)
+        mb = r.get("merged_batch_ids")
+        if mb:
+            for bid in str(mb).split(","):
+                bid = bid.strip()
+                if bid:
+                    batch_ids.add(int(bid))
+
+    batches = {}
+    if batch_ids:
+        q = fetch_all(
+            conn,
+            "SELECT batch_id, batch_code, program, semester, batch_size FROM student_batch WHERE batch_id = ANY(%s)",
+            (list(batch_ids),),
+        )
+        for b in q:
+            batches[int(b["batch_id"])] = {
+                "batch_code": b["batch_code"],
+                "program": b["program"],
+                "semester": b["semester"],
+                "batch_size": b.get("batch_size"),
+            }
+
+    # Expand rows: for merged entries, yield one event per actual batch id
+    events: list[dict[str, Any]] = []
+    for r in rows:
+        merged = bool(r.get("is_merged"))
+        mb = r.get("merged_batch_ids")
+        if merged and mb:
+            ids = [int(x.strip()) for x in str(mb).split(",") if x.strip()]
+            for bid in ids:
+                info = batches.get(bid, {})
+                ev = {
+                    "timetable_id": r["timetable_id"],
+                    "day_of_week": r["day_of_week"],
+                    "start_time": r["start_time"],
+                    "end_time": r["end_time"],
+                    "course_code": r["course_code"],
+                    "course_title": r["course_title"],
+                    "faculty": r["faculty"],
+                    "batch_id": bid,
+                    "batch_code": info.get("batch_code", f"B{bid}"),
+                    "program": info.get("program"),
+                    "semester": info.get("semester"),
+                    "room_code": r["room_code"],
+                    "capacity": r.get("capacity"),
+                }
+                events.append(ev)
+        else:
+            # single (non-merged) or merged with no metadata: use rep_batch_id
+            bid = int(r.get("rep_batch_id")) if r.get("rep_batch_id") is not None else None
+            info = batches.get(bid, {}) if bid is not None else {}
+            ev = {
+                "timetable_id": r["timetable_id"],
+                "day_of_week": r["day_of_week"],
+                "start_time": r["start_time"],
+                "end_time": r["end_time"],
+                "course_code": r["course_code"],
+                "course_title": r["course_title"],
+                "faculty": r["faculty"],
+                "batch_id": bid,
+                "batch_code": info.get("batch_code", f"B{bid}"),
+                "program": info.get("program"),
+                "semester": info.get("semester"),
+                "room_code": r["room_code"],
+                "capacity": r.get("capacity"),
+            }
+            events.append(ev)
+
+    # Sort events for consistent output
+    events.sort(key=lambda x: (x.get("batch_code"), x.get("day_of_week"), str(x.get("start_time"))))
+    return events
 
 
 def _day_order() -> dict[str, int]:
