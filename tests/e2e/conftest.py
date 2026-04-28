@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+import io
 import json
 import os
 import re
 import socket
-from urllib.parse import urlparse
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
+import zipfile
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import pytest
 from playwright.sync_api import Page, Route
@@ -95,6 +97,15 @@ SAMPLE_META: dict[str, int] = {
     "batch_course_map": 7,
 }
 
+def _minimal_zip_bytes() -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
+        zf.writestr("export.txt", b"mock")
+    return buf.getvalue()
+
+
+MINIMAL_ZIP_BYTES = _minimal_zip_bytes()
+
 SAMPLE_EVENTS: list[dict[str, Any]] = [
     {
         "day_of_week": "Mon",
@@ -126,6 +137,10 @@ def install_api_mocks(
     conflicts_by_run: dict[int, list[dict[str, Any]]] | None = None,
     load_body: str | None = None,
     schedule_body: str | None = None,
+    schedule_status: int = 200,
+    health_status: int = 200,
+    health_body: str | None = None,
+    mock_export_zip: bool = True,
 ) -> None:
     # Allow repeated installs in a single test (e.g. different mock for Refresh).
     page.unroute("**/*")
@@ -135,8 +150,10 @@ def install_api_mocks(
     confmap: dict[int, list[dict[str, Any]]] = conflicts_by_run if conflicts_by_run is not None else {}
     load_b = load_body or '{"ok": true, "message": "ok"}'
     sched_b = schedule_body or '{"ok": true, "run_id": 2, "message": "ok"}'
+    health_b = health_body or '{"ok": false, "error": "mock"}'
     re_events = re.compile(r"/api/run/(\d+)/events$")
     re_conf = re.compile(r"/api/run/(\d+)/conflicts$")
+    re_zip = re.compile(r"/api/export/(\d+)/zip$")
 
     def handle(route: Route) -> None:
         req = route.request
@@ -147,9 +164,9 @@ def install_api_mocks(
         path = urlparse(p).path
         if path == "/api/health" and req.method == "GET":
             route.fulfill(
-                status=200,
+                status=health_status,
                 content_type="application/json",
-                body='{"ok": true, "database": "connected"}',
+                body='{"ok": true, "database": "connected"}' if health_status == 200 else health_b,
             )
             return
         if path == "/api/meta" and req.method == "GET":
@@ -162,7 +179,19 @@ def install_api_mocks(
             route.fulfill(status=200, content_type="application/json", body=load_b)
             return
         if path == "/api/schedule" and req.method == "POST":
-            route.fulfill(status=200, content_type="application/json", body=sched_b)
+            route.fulfill(
+                status=schedule_status,
+                content_type="application/json",
+                body=sched_b,
+            )
+            return
+        if mock_export_zip and re_zip.search(path) and req.method == "GET":
+            route.fulfill(
+                status=200,
+                content_type="application/zip",
+                body=MINIMAL_ZIP_BYTES,
+                headers={"Content-Disposition": 'attachment; filename="timetable_run1.zip"'},
+            )
             return
         m = re_events.search(path)
         if m and req.method == "GET":

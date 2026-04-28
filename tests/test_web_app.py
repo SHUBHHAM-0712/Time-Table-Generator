@@ -38,11 +38,18 @@ def test_index_page_renders_html() -> None:
     resp = client.get("/")
     assert resp.status_code == 200
     text = resp.text
+    assert "OptiSchedule" in text
     assert "Timetable Generator" in text
+    assert "Academic Schedule Management" in text
+    assert "Data Ingest" in text
+    assert "Generate Schedule" in text
     assert 'id="form-load"' in text
     assert 'id="form-schedule"' in text
     assert 'id="runs-table"' in text
+    assert 'id="meta"' in text
+    assert "metric-card" in text
     assert 'href="/static/style.css"' in text
+    assert 'href="/static/tt-fevicon.png"' in text
 
 
 def test_api_health_success(monkeypatch) -> None:
@@ -123,6 +130,30 @@ def test_api_load_without_files(monkeypatch) -> None:
 
     assert resp.status_code == 200
     assert resp.json()["ok"] is True
+
+
+def test_api_run_events_and_conflicts(monkeypatch) -> None:
+    conn = StubConn()
+    monkeypatch.setattr(web_app, "_conn", lambda: conn)
+    monkeypatch.setattr(
+        web_app,
+        "fetch_timetable_events",
+        lambda _c, rid: [{"run_id": rid, "course_code": "X"}],
+    )
+    monkeypatch.setattr(
+        web_app.db,
+        "fetch_all",
+        lambda *_a, **_k: [{"report_id": 1, "severity": "info", "category": "c", "detail": "d", "created_at": "t"}],
+    )
+    client = TestClient(web_app.app)
+
+    ev = client.get("/api/run/42/events")
+    cf = client.get("/api/run/42/conflicts")
+
+    assert ev.status_code == 200
+    assert ev.json()[0]["course_code"] == "X"
+    assert cf.status_code == 200
+    assert cf.json()[0]["report_id"] == 1
 
 
 def test_api_export_zip(monkeypatch, tmp_path: Path) -> None:
