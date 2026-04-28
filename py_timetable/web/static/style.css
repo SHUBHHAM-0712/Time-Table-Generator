@@ -192,6 +192,11 @@ pre.raw {
   color: #0a3d5c;
 }
 
+/* `display: flex` wins over the [hidden] attribute otherwise; must hide when JS sets hidden. */
+.running-banner[hidden] {
+  display: none !important;
+}
+
 .running-banner .running-hint {
   flex: 1 1 100%;
   font-size: 12px;

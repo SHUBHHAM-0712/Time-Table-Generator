@@ -33,6 +33,18 @@ class StubConn:
         self.closed = True
 
 
+def test_index_page_renders_html() -> None:
+    client = TestClient(web_app.app)
+    resp = client.get("/")
+    assert resp.status_code == 200
+    text = resp.text
+    assert "Timetable Generator" in text
+    assert 'id="form-load"' in text
+    assert 'id="form-schedule"' in text
+    assert 'id="runs-table"' in text
+    assert 'href="/static/style.css"' in text
+
+
 def test_api_health_success(monkeypatch) -> None:
     monkeypatch.setattr(web_app, "_conn", lambda: StubConn())
     client = TestClient(web_app.app)
