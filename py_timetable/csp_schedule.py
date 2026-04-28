@@ -13,7 +13,7 @@ from .db import fetch_all
 
 @dataclass
 class SlotInfo:
-    slot_id: int
+    slot_id: int        
     day: str
     order_index: int
 
@@ -311,7 +311,7 @@ def greedy_assign(vars_, slots, rooms):
         if not candidates:
             return None  # fail fast
 
-        _, _, best_s, best_r = min(candidates, key=lambda x: (x[0], x[1]))
+        _, _, best_s, best_r = min(candidates, key=lambda x: (x[1], x[1]))
 
         assignment[v.var_index] = (best_s.slot_id, best_r["room_id"])
         faculty_busy.add((v.faculty_id, best_s.slot_id))
