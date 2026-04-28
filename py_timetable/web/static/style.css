@@ -396,13 +396,26 @@ body {
 .status-banner {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  background: var(--warning-light);
-  border: 1px solid #fcd34d;
-  border-radius: var(--radius-md);
-  margin: var(--space-4) 0;
-  animation: slideInDown 0.3s ease;
+  gap: 0.5rem 0.75rem;
+  margin: 0.75rem 0 0;
+  padding: 0.65rem 0.75rem;
+  font-size: 13px;
+  line-height: 1.4;
+  background: #e8f4fc;
+  border: 1px solid #7eb8e0;
+  border-radius: 4px;
+  color: #0a3d5c;
+}
+
+/* `display: flex` wins over the [hidden] attribute otherwise; must hide when JS sets hidden. */
+.running-banner[hidden] {
+  display: none !important;
+}
+
+.running-banner .running-hint {
+  flex: 1 1 100%;
+  font-size: 12px;
+  opacity: 0.9;
 }
 
 .spinner {

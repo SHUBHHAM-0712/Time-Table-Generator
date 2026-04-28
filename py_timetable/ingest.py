@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import re
 from pathlib import Path
 from typing import Any
@@ -35,17 +34,6 @@ def _norm_faculty_key(name: str) -> str:
     return re.sub(r"\s+", " ", s)[:128]
 
 
-def _elective_slot(course_type: str, code: str) -> str | None:
-    ct = course_type.lower()
-    if "core" in ct and "elective" not in ct:
-        return None
-    if "elective" in ct or "honours" in ct:
-        raw = f"{code}|{course_type}".encode()
-        h = int(hashlib.md5(raw).hexdigest()[:8], 16) % 7
-        return f"EL-{h}"
-    return None
-
-
 def load_time_matrix(conn: PgConnection, path: Path) -> int:
     """Load timeslots from CSV; lunch rows are blackouts."""
     rows: list[tuple[Any, ...]] = []
@@ -66,6 +54,8 @@ def load_time_matrix(conn: PgConnection, path: Path) -> int:
         return 0
 
     with conn.cursor() as cur:
+        cur.execute("DELETE FROM timetable_session_batch")
+        cur.execute("DELETE FROM timetable_session")
         cur.execute("DELETE FROM time_matrix")
         execute_values(
             cur,
@@ -158,22 +148,20 @@ def ingest_academic_csv(conn: PgConnection, path: Path, default_batch_size: int)
         if code in course_ids:
             return course_ids[code]
         lh, th, ph, cr = _parse_ltp(ltp)
-        eslot = _elective_slot(ctype, code)
         cur.execute(
             """
-            INSERT INTO course (code, title, lecture_hours, tutorial_hours, practical_hours, credits, course_type, elective_slot)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO course (code, title, lecture_hours, tutorial_hours, practical_hours, credits, course_type)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (code) DO UPDATE
             SET title = EXCLUDED.title,
                 lecture_hours = EXCLUDED.lecture_hours,
                 tutorial_hours = EXCLUDED.tutorial_hours,
                 practical_hours = EXCLUDED.practical_hours,
                 credits = EXCLUDED.credits,
-                course_type = EXCLUDED.course_type,
-                elective_slot = EXCLUDED.elective_slot
+                course_type = EXCLUDED.course_type
             RETURNING course_id
             """,
-            (code, title, lh, th, ph, cr, ctype.strip(), eslot),
+            (code, title, lh, th, ph, cr, ctype.strip()),
         )
         cid = cur.fetchone()[0]
         if code not in course_ids:
@@ -231,10 +219,12 @@ def ingest_academic_csv(conn: PgConnection, path: Path, default_batch_size: int)
             cur.execute(
                 """
                 INSERT INTO faculty_course_map (faculty_id, course_id)
-                VALUES (%s, %s)
-                ON CONFLICT (faculty_id, course_id) DO NOTHING
+                SELECT %s, %s
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM faculty_course_map m
+                    WHERE m.faculty_id = %s AND m.course_id = %s)
                 """,
-                (fid, cid),
+                (fid, cid, fid, cid),
             )
 
             cur.execute(
@@ -268,7 +258,6 @@ def load_assignment_map(
         f"""
         SELECT fcm.assignment_id, fcm.faculty_id, f.short_name AS faculty_short,
                c.course_id, c.code AS course_code, c.lecture_hours, c.course_type,
-               c.elective_slot,
                bcm.batch_id, sb.batch_code, sb.batch_size, sb.program, sb.semester
         FROM batch_course_map bcm
         JOIN faculty_course_map fcm

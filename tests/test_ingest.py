@@ -21,13 +21,6 @@ def test_norm_faculty_key() -> None:
     assert ingest._norm_faculty_key("   ") == "UNKNOWN"
 
 
-def test_elective_slot_behavior() -> None:
-    assert ingest._elective_slot("Core", "CS101") is None
-    slot = ingest._elective_slot("Technical Elective", "CS501")
-    assert slot is not None
-    assert slot.startswith("EL-")
-
-
 def test_load_time_matrix_parses_rows(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_conn) -> None:
     csv_path = tmp_path / "slots.csv"
     csv_path.write_text(
@@ -48,6 +41,8 @@ def test_load_time_matrix_parses_rows(monkeypatch: pytest.MonkeyPatch, tmp_path:
     count = ingest.load_time_matrix(fake_conn, csv_path)
 
     assert count == 2
+    assert any("DELETE FROM timetable_session_batch" in q for q, _ in fake_conn.executed)
+    assert any("DELETE FROM timetable_session" in q for q, _ in fake_conn.executed)
     assert any("DELETE FROM time_matrix" in q for q, _ in fake_conn.executed)
     rows = captured["rows"]
     assert isinstance(rows, list)

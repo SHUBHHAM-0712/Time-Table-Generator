@@ -2,6 +2,8 @@
 -- Clears any generated timetables because they reference room_id.
 -- Run after 002_seed.sql.
 
+DELETE FROM timetable_session_batch;
+DELETE FROM timetable_session;
 DELETE FROM master_timetable;
 DELETE FROM conflict_report;
 DELETE FROM schedule_run;
